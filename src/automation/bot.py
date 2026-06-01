@@ -8,7 +8,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# ROTA PARA RECEBER MENSAGENS DO JS
+# RECEBE A MSG
 @app.route("/mensagem", methods=["POST"])
 def receber_mensagem():
     dados = request.json
@@ -16,7 +16,7 @@ def receber_mensagem():
     resposta = processar_mensagem(texto)
     return jsonify({"resposta": resposta})
 
-# LÓGICaDO B
+# LÓGICA
 def processar_mensagem(texto):
     texto = texto.lower().strip()
 
@@ -70,7 +70,7 @@ def processar_mensagem(texto):
         "• *ajuda*"
     )
 
-# ta buscando os vos pela api rei 
+# BUSCA 
 def buscar_voo(texto):
     origem = re.search(r"de (.+?) para", texto)
     destino = re.search(r"para (.+?)( dia|$)", texto)
@@ -82,6 +82,7 @@ def buscar_voo(texto):
             "Tente assim:\n"
             "*voo de São Paulo para Fortaleza dia 20/07*"
         )
+
     origem_texto = origem.group(1).strip()
     destino_texto = destino.group(1).strip()
 
@@ -125,6 +126,7 @@ def buscar_voo(texto):
         )
 
         dados = response.json()
+        print("RESPOSTA API:", dados)
 
         if not dados.get("success") or not dados.get("flightGroups"):
             return (
@@ -149,32 +151,36 @@ def buscar_voo(texto):
             f"https://www.google.com/travel/flights?q=voos+"
             f"{origem_texto.replace(' ', '+')}+para+{destino_texto.replace(' ', '+')}"
         )
+
         return resposta
 
     except Exception as e:
+        print(f"ERRO: {e}")
         return (
             "Tive um problema ao buscar os voos. 😕\n\n"
             "Tente novamente em instantes!"
         )
-# BUSCA CÓDIGO 
+
+# ===== BUSCA CÓDIGO IATA (usando a linguagem do js)
 def buscar_codigo_iata(cidade):
     try:
-        response = requests.post(
-            f"https://app.apidevoos.dev/api/flights/consulta-aereo/aeroportos?filtro={cidade}",
+        response = requests.get(
+            "https://app.apidevoos.dev/api/v1/airports/autocomplete",
             headers={
                 "Authorization": f"Bearer {os.getenv('APIDEVOOS_KEY')}",
-            }
+            },
+            params={"q": cidade}
         )
         dados = response.json()
-
-        if dados.get("Success") and dados.get("Data"):
-            return dados["Data"][0]["Iata"]
+        print("IATA RESPOSTA:", dados)
+        if dados and len(dados) > 0:
+            return dados[0]["iata"]
+        return None
+    except Exception as e:
+        print(f"ERRO IATA: {e}")
         return None
 
-    except:
-        return None
-
-# INICIA O SERVIDOR
+# da go no serv
 if __name__ == "__main__":
     print("🤖 Bot de Viagens rodando na porta 5000...")
     app.run(port=5000, debug=True)
