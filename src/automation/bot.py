@@ -8,7 +8,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# ROTA PARA RECEBER MENSAGENS DO JS 
+# ROTA PARA RECEBER MENSAGENS DO JS
 @app.route("/mensagem", methods=["POST"])
 def receber_mensagem():
     dados = request.json
@@ -16,10 +16,10 @@ def receber_mensagem():
     resposta = processar_mensagem(texto)
     return jsonify({"resposta": resposta})
 
+# LÓGICaDO B
 def processar_mensagem(texto):
     texto = texto.lower().strip()
 
-    # saudações
     saudacoes = ["oi", "olá", "ola", "bom dia", "boa tarde", "boa noite", "hello", "opa", "eai", "e aí"]
     if any(s in texto for s in saudacoes):
         return (
@@ -32,12 +32,10 @@ def processar_mensagem(texto):
             "• *passagem de Manaus para Salvador*"
         )
 
-    # intenção de voo
     intencoes = ["voo", "voos", "passagem", "passagens", "voar", "viajar", "viagem", "quero ir", "quero viajar", "preciso ir", "bilhete"]
     if any(i in texto for i in intencoes):
         return buscar_voo(texto)
 
-    # promoções
     promocoes_kw = ["promoção", "promocao", "promoções", "promocoes", "oferta", "ofertas", "barato", "barata", "desconto"]
     if any(p in texto for p in promocoes_kw):
         return (
@@ -51,7 +49,6 @@ def processar_mensagem(texto):
             "Quer buscar uma rota específica? Me diga a cidade de origem e destino! 😊"
         )
 
-    # ajuda
     ajuda_kw = ["ajuda", "help", "menu", "opções", "opcoes", "o que você faz", "o que voce faz", "como funciona"]
     if any(a in texto for a in ajuda_kw):
         return (
@@ -65,7 +62,6 @@ def processar_mensagem(texto):
             "Ou digite *promoções* para ver as ofertas do dia!"
         )
 
-    # caso o caba seja burro
     return (
         "Não entendi. 😅\n\n"
         "Tente assim:\n"
@@ -74,11 +70,12 @@ def processar_mensagem(texto):
         "• *ajuda*"
     )
 
-# =BUSCA DE VOOS 
+# ta buscando os vos pela api rei 
 def buscar_voo(texto):
     origem = re.search(r"de (.+?) para", texto)
     destino = re.search(r"para (.+?)( dia|$)", texto)
     data = re.search(r"dia (\d{2}/\d{2})", texto)
+
     if not origem or not destino:
         return (
             "Não entendi a rota. 😅\n\n"
@@ -90,11 +87,13 @@ def buscar_voo(texto):
 
     codigo_origem = buscar_codigo_iata(origem_texto)
     codigo_destino = buscar_codigo_iata(destino_texto)
+
     if not codigo_origem or not codigo_destino:
         return (
             f"Não encontrei o aeroporto de *{origem_texto}* ou *{destino_texto}*. 😅\n\n"
             "Tente usar o nome completo da cidade!"
         )
+
     data_formatada = "2026-07-20"
     if data:
         partes = data.group(1).split("/")
@@ -102,71 +101,80 @@ def buscar_voo(texto):
 
     try:
         response = requests.post(
-            "https://apidevoos.dev/flights/consulta-aereo/pesquisar",
+            "https://app.apidevoos.dev/api/v1/flights/search",
             headers={
                 "Authorization": f"Bearer {os.getenv('APIDEVOOS_KEY')}",
                 "Content-Type": "application/json"
             },
             json={
-                "origin": codigo_origem,
-                "destination": codigo_destino,
-                "departureDate": data_formatada,
-                "adults": 1
-            }
+                "type": "one_way",
+                "slices": [
+                    {
+                        "origin": codigo_origem,
+                        "destination": codigo_destino,
+                        "departureDate": data_formatada
+                    }
+                ],
+                "passengers": [
+                    {"type": "adult", "count": 1}
+                ],
+                "cabinClass": "economy",
+                "searchType": "pagante"
+            },
+            timeout=30
         )
 
         dados = response.json()
 
-        if not dados.get("success") or not dados.get("data"):
+        if not dados.get("success") or not dados.get("flightGroups"):
             return (
                 f"Não encontrei voos de *{origem_texto.title()}* para "
                 f"*{destino_texto.title()}* nessa data. 😕\n\n"
                 "Tente outra data ou rota!"
             )
 
-        voos = dados["data"][:3]
+        voos = dados["flightGroups"][:3]
         resposta = f"✈️ *Voos de {origem_texto.title()} → {destino_texto.title()}*\n\n"
 
         for voo in voos:
-            preco = voo.get("price", "N/A")
-            cia = voo.get("airline", "N/A")
-            horario = voo.get("departureTime", "N/A")
-            resposta += f"🕐 {horario} | {cia} | 💰 R$ {preco}\n"
+            preco = voo.get("totalPrice", {}).get("amount", "N/A")
+            segmento = voo["slices"][0]["segments"][0]
+            cia = segmento.get("airline", {}).get("name", "N/A")
+            horario = segmento.get("departureTime", "N/A")[:16]
+            duracao = segmento.get("duration", "N/A")
+            resposta += f"🕐 {horario} | {cia} | ⏱ {duracao} | 💰 R$ {preco}\n\n"
 
         resposta += (
-            f"\n🔗 Ver mais opções:\n"
+            f"🔗 Ver mais opções:\n"
             f"https://www.google.com/travel/flights?q=voos+"
             f"{origem_texto.replace(' ', '+')}+para+{destino_texto.replace(' ', '+')}"
         )
-
         return resposta
 
-    except:
+    except Exception as e:
         return (
             "Tive um problema ao buscar os voos. 😕\n\n"
             "Tente novamente em instantes!"
         )
+# BUSCA CÓDIGO 
 def buscar_codigo_iata(cidade):
     try:
         response = requests.post(
-            "https://apidevoos.dev/flights/consulta-aereo/pesquisar-aeroporto",
+            f"https://app.apidevoos.dev/api/flights/consulta-aereo/aeroportos?filtro={cidade}",
             headers={
                 "Authorization": f"Bearer {os.getenv('APIDEVOOS_KEY')}",
-                "Content-Type": "application/json"
-            },
-            json={"query": cidade}
+            }
         )
         dados = response.json()
 
-        if dados.get("success") and dados.get("data"):
-            return dados["data"][0]["iata"]
+        if dados.get("Success") and dados.get("Data"):
+            return dados["Data"][0]["Iata"]
         return None
 
     except:
         return None
 
-
-# go seerv
+# INICIA O SERVIDOR
 if __name__ == "__main__":
     print("🤖 Bot de Viagens rodando na porta 5000...")
     app.run(port=5000, debug=True)

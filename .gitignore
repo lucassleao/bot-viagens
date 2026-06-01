@@ -1,2 +1,6 @@
-.env 
-*.log 
+.env
+*.log
+node_modules/
+venv/
+__pycache__/
+*.pyc
