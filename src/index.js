@@ -16,10 +16,10 @@ function tomorrow() {
   return d.toISOString().split("T")[0]; // YYYY-MM-DD
 }
 
-app.post("/webhook", async (req, res) => {
-  const { phone, message } = req.body ?? {};
+app.post("/mensagem", async (req, res) => {
+  const { phone, texto } = req.body ?? {};
 
-  const { origin, destination, date } = extractFlightInfo(message ?? "");
+  const { origin, destination, date } = extractFlightInfo(texto ?? "");
 
   if (!origin || !destination) {
     return res.json({ phone, reply: HELP_MESSAGE });
@@ -39,7 +39,7 @@ app.post("/webhook", async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
